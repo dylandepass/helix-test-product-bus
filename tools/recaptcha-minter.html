@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>recaptcha enterprise — token minter</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      body { font: 14px/1.5 -apple-system, system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+      input { font: inherit; padding: .5rem; width: 100%; box-sizing: border-box; }
+      button { font: inherit; padding: .5rem 1rem; margin-right: .5rem; cursor: pointer; }
+      pre { background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; word-break: break-all; white-space: pre-wrap; }
+      .row { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; }
+      .muted { color: #666; }
+      .ok { color: #080; }
+      .err { color: #c00; }
+    </style>
+  </head>
+  <body>
+    <h1>reCAPTCHA Enterprise — token minter</h1>
+
+    <p class="muted">
+      Helper for <code>vitamix/test-recaptcha.mjs</code>. Loads the
+      reCAPTCHA Enterprise SDK with your site key and lets you mint a token
+      for any of the three actions the worker recognizes. Tokens are
+      copied to the clipboard automatically.
+    </p>
+
+    <p class="muted">
+      This page is served from an AEM delivery domain so its hostname is
+      automatically in the tenant's CORS allow-list. No <code>localhost</code>
+      setup needed.
+    </p>
+
+    <div class="row">
+      <label for="key" style="white-space: nowrap;">Site key:</label>
+      <input id="key" placeholder="6Lc..." autocomplete="off" />
+      <button id="load-btn">Load SDK</button>
+    </div>
+
+    <div id="actions" style="display:none;">
+      <p>Mint a token for action:</p>
+      <div class="row">
+        <button data-action="orders_preview">orders_preview</button>
+        <button data-action="orders_create">orders_create</button>
+        <button data-action="auth_login">auth_login</button>
+      </div>
+      <p class="muted">Tokens are single-use and expire after ~2 minutes.</p>
+    </div>
+
+    <h3>Latest token</h3>
+    <pre id="out" class="muted">(none yet)</pre>
+
+    <h3>History</h3>
+    <pre id="hist" class="muted">(empty)</pre>
+
+    <script>
+      const keyInput = document.getElementById('key');
+      const out = document.getElementById('out');
+      const hist = document.getElementById('hist');
+      const loadBtn = document.getElementById('load-btn');
+      const actionsDiv = document.getElementById('actions');
+
+      keyInput.value = localStorage.getItem('recaptchaSiteKey') || '';
+
+      let loadedKey = null;
+
+      function setOut(text, cls) {
+        out.textContent = text;
+        out.className = cls || '';
+      }
+
+      function loadSdk() {
+        const k = keyInput.value.trim();
+        if (!k) { alert('enter a site key first'); return; }
+        if (loadedKey === k) {
+          actionsDiv.style.display = 'block';
+          return;
+        }
+        if (loadedKey) {
+          alert('SDK already loaded with a different key — reload the page to switch keys');
+          return;
+        }
+        const s = document.createElement('script');
+        s.src = 'https://www.google.com/recaptcha/enterprise.js?render=' + encodeURIComponent(k);
+        s.onload = () => {
+          loadedKey = k;
+          localStorage.setItem('recaptchaSiteKey', k);
+          actionsDiv.style.display = 'block';
+          setOut('SDK loaded — pick an action.', 'muted');
+        };
+        s.onerror = () => {
+          setOut('Failed to load reCAPTCHA SDK — check the site key and your network.', 'err');
+        };
+        document.head.appendChild(s);
+      }
+
+      async function mint(action) {
+        if (!loadedKey) { alert('load the SDK first'); return; }
+        try {
+          const tok = await grecaptcha.enterprise.execute(loadedKey, { action: action });
+          setOut('[' + action + ']\n\n' + tok, 'ok');
+          const ts = new Date().toLocaleTimeString();
+          const prev = hist.className === 'muted' ? '' : hist.textContent;
+          hist.className = '';
+          hist.textContent = ts + '  ' + action + '\n' + tok.slice(0, 48) + '...\n\n' + prev;
+          try {
+            await navigator.clipboard.writeText(tok);
+            console.log('[' + action + '] token copied to clipboard');
+          } catch (e) {
+            console.warn('clipboard write failed:', e);
+          }
+        } catch (e) {
+          setOut('execute() failed: ' + e.message, 'err');
+        }
+      }
+
+      loadBtn.addEventListener('click', loadSdk);
+      for (const btn of actionsDiv.querySelectorAll('button[data-action]')) {
+        btn.addEventListener('click', () => mint(btn.dataset.action));
+      }
+    </script>
+  </body>
+</html>
