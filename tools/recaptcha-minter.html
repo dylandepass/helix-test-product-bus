@@ -13,6 +13,7 @@
       .muted { color: #666; }
       .ok { color: #080; }
       .err { color: #c00; }
+      .grecaptcha-badge { visibility: hidden; }
     </style>
   </head>
   <body>
@@ -52,6 +53,12 @@
 
     <h3>History</h3>
     <pre id="hist" class="muted">(empty)</pre>
+
+    <p class="muted" style="font-size: 12px; margin-top: 2rem;">
+      This site is protected by reCAPTCHA and the Google
+      <a href="https://policies.google.com/privacy">Privacy Policy</a> and
+      <a href="https://policies.google.com/terms">Terms of Service</a> apply.
+    </p>
 
     <script>
       const keyInput = document.getElementById('key');
